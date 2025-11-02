@@ -1,103 +1,46 @@
-#include <ESP8266WiFi.h>
-#include <RH_ASK.h>
-#include <SPI.h> 
-
-const char* ssid     = "VITC-EVENT";
-const char* password = "Eve@11^12#$";
-const char* host     = "api.pushingbox.com";
-const char* devid    = "v8F537FA4F94F30E";  
-
-const int buttonPin  = D5;           
-RH_ASK driver(2000, D7, D6);         
-bool messageSent = false;
+// ESP32 Transmitter Code for 433MHz RF Module
+int TX_pin = 5;        // 433MHz transmitter data pin (you can change this)
+int front = 18;    // Button pins - adjust these to your wiring
+int back = 19;
+int left = 21;
+int rght = 22;
 
 void setup() {
-  Serial.begin(115200);
-  pinMode(buttonPin, INPUT_PULLUP);
-
-  
-  if (!driver.init()) {
-    Serial.println("Transmitter init failed");
-  } else {
-    Serial.println("Transmitter ready");
-  }
-
-  
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-}
-
-void sendPushingBoxNotification() {
-  WiFiClient client;
-  const int httpPort = 80; 
-  if (!client.connect(host, httpPort)) {
-    Serial.println("Connection to PushingBox failed");
-    return;
-  }
-
-  String url = "/pushingbox?devid=" + String(devid);
-  Serial.print("Requesting URL: ");
-  Serial.println(url);
-
-  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "Connection: close\r\n\r\n");
-
-  unsigned long timeout = millis();
-  while (client.available() == 0) {
-    if (millis() - timeout > 5000) {
-      Serial.println(">>> Client Timeout !");
-      client.stop();
-      return;
-    }
-  }
-
-  while (client.available()) {
-    String line = client.readStringUntil('\r');
-    Serial.print(line);
-  }
-
-  Serial.println("\nNotification sent. Closing connection.");
+  pinMode(TX_pin, OUTPUT);
+  pinMode(front, INPUT_PULLUP);  // Using internal pullup resistors
+  pinMode(back, INPUT_PULLUP);
+  pinMode(left, INPUT_PULLUP);
+  pinMode(rght, INPUT_PULLUP);
 }
 
 void loop() {
-  static unsigned long lastDebounceTime = 0; 
-  static int lastButtonState = HIGH; 
-  int buttonState = digitalRead(buttonPin);
-
-  
-  if (buttonState != lastButtonState) {
-    lastDebounceTime = millis(); 
+  // Note: INPUT_PULLUP means buttons are active LOW (pressed = LOW)
+  if(!digitalRead(front))
+  {
+    write_freq(1000);
   }
-
-  
-  if ((millis() - lastDebounceTime) > 50) {
-    
-    if (buttonState == LOW && !messageSent) {
-      messageSent = true;
-
-      
-      const char *msg = "ALERT";
-      driver.send((uint8_t *)msg, strlen(msg));
-      driver.waitPacketSent();
-      Serial.println("Sent RF: ALERT");
-
-      
-      sendPushingBoxNotification();
-    }
+  else if(!digitalRead(back))
+  {
+    write_freq(1500);
   }
-
-  if (buttonState == HIGH) {
-    messageSent = false;
+  else if(!digitalRead(left))
+  {
+    write_freq(2000);
   }
+  else if(!digitalRead(rght))
+  {
+    write_freq(2500);
+  }  
+  else
+  {
+    write_freq(3000);  // No button pressed
+  }
+}
 
-  lastButtonState = buttonState; 
+void write_freq(int DELAY)
+{
+  digitalWrite(TX_pin, LOW);
+  delayMicroseconds(DELAY);
+  digitalWrite(TX_pin, HIGH);
+  delayMicroseconds(DELAY);
 }
